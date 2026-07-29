@@ -15,11 +15,22 @@ import (
 
 func main() {
 	var port int
+	var mode string
 	flag.IntVar(&port, "port", loadConfig().Port, "HTTP port to listen on")
+	flag.StringVar(&mode, "mode", "", "run mode: cloud or laptop (auto-detected from env if empty)")
 	flag.Parse()
 
 	cfg := loadConfig()
 	cfg.Port = port
+
+	// Detect mode from env if not set via flag
+	if mode == "" {
+		if cfg.NodeEndpoint != "" {
+			mode = "cloud"
+		} else {
+			mode = "laptop"
+		}
+	}
 
 	svc, err := newService(cfg)
 	if err != nil {
@@ -33,6 +44,13 @@ func main() {
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Start the laptop agent if in laptop mode
+	if mode == "laptop" {
+		go startAgent(ctx, svc)
+	}
 
 	server := &http.Server{
 		Addr:              fmt.Sprintf("0.0.0.0:%d", cfg.Port),
@@ -41,14 +59,15 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("self-hosted backend listening on %s", server.Addr)
+		log.Printf("dbhost [%s mode] listening on %s", mode, server.Addr)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("server failed: %v", err)
 		}
 	}()
 
 	<-stop
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	_ = server.Shutdown(ctx)
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+	_ = server.Shutdown(shutdownCtx)
 }
+</content>
