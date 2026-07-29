@@ -1,0 +1,11 @@
+*.exe
+*.exe~
+*.test
+*.out
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+.env
+/vendor/
