@@ -20,6 +20,7 @@ type config struct {
 	NodeAuthToken   string
 	RateLimitBurst  int
 	RateLimitWindow int
+	ProxyMode       bool
 }
 
 type tenant struct {

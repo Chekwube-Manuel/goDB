@@ -1,0 +1,22 @@
+# Dockerfile for pxxl.app deployment (proxy mode — no database needed)
+# This runs goDB as a pure proxy, forwarding all requests to your laptop.
+#
+# Environment variables to set on pxxl.app:
+#   PROXY_MODE=true
+#   NODE_ENDPOINT=https://your-laptop.ngrok.io
+#   NODE_TOKEN=<token>
+#   AUTH_USERNAME=admin
+#   AUTH_PASSWORD=<your-password>
+
+FROM golang:1.25-alpine AS builder
+WORKDIR /app
+COPY go.mod go.sum* ./
+RUN go mod download
+COPY . .
+RUN go build -o app .
+
+FROM alpine:3.20
+WORKDIR /app
+COPY --from=builder /app/app ./app
+EXPOSE 8080
+ENTRYPOINT ["./app"]

@@ -19,6 +19,24 @@ type service struct {
 }
 
 func newService(cfg config) (*service, error) {
+	svc := &service{
+		cfg:     cfg,
+		limiter: newRateLimiter(cfg.RateLimitBurst, cfg.RateLimitWindow),
+	}
+
+	// In proxy mode, no PostgreSQL or Redis needed — just forward to laptop
+	if cfg.ProxyMode {
+		if cfg.AuthPassword != "" {
+			hashed, err := hashPassword(cfg.AuthPassword)
+			if err != nil {
+				return nil, err
+			}
+			svc.authPasswordHash = hashed
+		}
+		return svc, nil
+	}
+
+	// Full mode: connect to PostgreSQL and Redis
 	db, err := sql.Open("pgx", cfg.DatabaseURL)
 	if err != nil {
 		return nil, err
@@ -46,7 +64,9 @@ func newService(cfg config) (*service, error) {
 		return nil, err
 	}
 
-	svc := &service{cfg: cfg, db: db, rdb: rdb, limiter: newRateLimiter(cfg.RateLimitBurst, cfg.RateLimitWindow)}
+	svc.db = db
+	svc.rdb = rdb
+
 	if err := svc.initSchema(ctx); err != nil {
 		_ = db.Close()
 		_ = rdb.Close()

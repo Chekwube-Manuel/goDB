@@ -5,10 +5,6 @@ import (
 	"strings"
 )
 
-const (
-	dataPrefix = "/tenants/"
-)
-
 func (s *service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.setCORSHeaders(w, r)
 	if r.Method == http.MethodOptions {
@@ -32,18 +28,27 @@ func (s *service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// ── PROXY MODE (on pxxl.app): no database at all — just forward everything ──
+	if s.cfg.ProxyMode {
+		if r.URL.Path == "/health" || r.URL.Path == "/health/" {
+			writeJSON(w, http.StatusOK, map[string]any{
+				"service": s.cfg.AppName,
+				"status":  "ok",
+				"mode":    "proxy",
+			})
+			return
+		}
+		s.forwardRequestAndReply(w, r)
+		return
+	}
+
 	// ── CLOUD MODE: forward data operations to laptop ──
-	// When NodeEndpoint is set, the cloud does NOT handle data locally.
-	// It only manages tenants, nodes, and routing — the actual data lives
-	// on the laptop. Laptop node endpoints receive the forwarded requests.
 	if s.cfg.NodeEndpoint != "" {
-		// Cloud handles these directly (metadata operations)
 		if r.URL.Path == "/health" || r.URL.Path == "/health/" {
 			s.handleHealth(w, r)
 			return
 		}
 
-		// Cloud-side tenant/node management stays local
 		isCloudOp := false
 		switch {
 		case r.URL.Path == "/tenants" && r.Method == http.MethodPost:
@@ -63,7 +68,6 @@ func (s *service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// All data operations (tenant/collection/record CRUD) get forwarded
 		s.forwardRequestAndReply(w, r)
 		return
 	}

@@ -6,6 +6,17 @@ import (
 )
 
 func loadConfig() config {
+	proxyMode := getenv("PROXY_MODE", "")
+	if proxyMode == "" {
+		// Auto-detect: if NODE_ENDPOINT is set but no DATABASE_URL override, assume proxy
+		nodeEp := os.Getenv("NODE_ENDPOINT")
+		dbURL := os.Getenv("DATABASE_URL")
+		proxyMode = "false"
+		if nodeEp != "" && dbURL == "" {
+			proxyMode = "true"
+		}
+	}
+
 	return config{
 		Port:          getenvInt("PORT", 8080),
 		DatabaseURL:   getenv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/appdb?sslmode=disable"),
@@ -21,8 +32,10 @@ func loadConfig() config {
 		NodeAuthToken:   getenv("NODE_AUTH_TOKEN", "node-secret"),
 		RateLimitBurst:  getenvInt("RATE_LIMIT_BURST", 30),
 		RateLimitWindow: getenvInt("RATE_LIMIT_WINDOW_MS", 60_000),
+		ProxyMode:       proxyMode == "true" || proxyMode == "1",
 	}
 }
+</content>
 
 func getenv(key string, fallback string) string {
 	if value := os.Getenv(key); value != "" {
