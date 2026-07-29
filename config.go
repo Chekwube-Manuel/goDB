@@ -8,7 +8,6 @@ import (
 func loadConfig() config {
 	proxyMode := getenv("PROXY_MODE", "")
 	if proxyMode == "" {
-		// Auto-detect: if NODE_ENDPOINT is set but no DATABASE_URL override, assume proxy
 		nodeEp := os.Getenv("NODE_ENDPOINT")
 		dbURL := os.Getenv("DATABASE_URL")
 		proxyMode = "false"
@@ -35,7 +34,6 @@ func loadConfig() config {
 		ProxyMode:       proxyMode == "true" || proxyMode == "1",
 	}
 }
-</content>
 
 func getenv(key string, fallback string) string {
 	if value := os.Getenv(key); value != "" {
