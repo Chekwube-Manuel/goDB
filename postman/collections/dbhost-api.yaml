@@ -1,0 +1,146 @@
+info:
+  name: DB Host API
+  description: API collection for self-hosted database backend
+  schema: https://schema.getpostman.com/json/collection/v2.1.0/collection.json
+item:
+  - name: Health
+    request:
+      method: GET
+      url:
+        raw: "{{base_url}}/health"
+        host: ["{{base_url}}"]
+        path: ["health"]
+      auth:
+        type: basic
+        basic:
+          - key: username
+            value: "{{username}}"
+            type: string
+          - key: password
+            value: "{{password}}"
+            type: string
+    response: []
+  - name: Create Tenant
+    request:
+      method: POST
+      url:
+        raw: "{{base_url}}/tenants"
+        host: ["{{base_url}}"]
+        path: ["tenants"]
+      header:
+        - key: Content-Type
+          value: application/json
+      body:
+        mode: raw
+        raw: '{"slug":"demo","name":"Demo Tenant"}'
+    response: []
+  - name: List Tenants
+    request:
+      method: GET
+      url:
+        raw: "{{base_url}}/tenants"
+        host: ["{{base_url}}"]
+        path: ["tenants"]
+    response: []
+  - name: Create Collection
+    request:
+      method: POST
+      url:
+        raw: "{{base_url}}/tenants/demo/collections"
+        host: ["{{base_url}}"]
+        path: ["tenants", "demo", "collections"]
+      header:
+        - key: Content-Type
+          value: application/json
+      body:
+        mode: raw
+        raw: '{"name":"users"}'
+    response: []
+  - name: List Collections
+    request:
+      method: GET
+      url:
+        raw: "{{base_url}}/tenants/demo/collections"
+        host: ["{{base_url}}"]
+        path: ["tenants", "demo", "collections"]
+    response: []
+  - name: Store Record
+    request:
+      method: POST
+      url:
+        raw: "{{base_url}}/tenants/demo/collections/users/records"
+        host: ["{{base_url}}"]
+        path: ["tenants", "demo", "collections", "users", "records"]
+      header:
+        - key: Content-Type
+          value: application/json
+      body:
+        mode: raw
+        raw: '{"data":{"name":"Alice","email":"alice@example.com"}}'
+    response: []
+  - name: List Records
+    request:
+      method: GET
+      url:
+        raw: "{{base_url}}/tenants/demo/collections/users/records"
+        host: ["{{base_url}}"]
+        path: ["tenants", "demo", "collections", "users", "records"]
+    response: []
+  - name: Register Node
+    request:
+      method: POST
+      url:
+        raw: "{{base_url}}/nodes"
+        host: ["{{base_url}}"]
+        path: ["nodes"]
+      header:
+        - key: Content-Type
+          value: application/json
+      body:
+        mode: raw
+        raw: '{"name":"node-1","endpoint":"http://laptop:5432","token":"node-token-123"}'
+    response: []
+  - name: List Nodes
+    request:
+      method: GET
+      url:
+        raw: "{{base_url}}/nodes"
+        host: ["{{base_url}}"]
+        path: ["nodes"]
+    response: []
+  - name: Node Heartbeat
+    request:
+      method: POST
+      url:
+        raw: "{{base_url}}/node/heartbeat"
+        host: ["{{base_url}}"]
+        path: ["node", "heartbeat"]
+      header:
+        - key: Content-Type
+          value: application/json
+      body:
+        mode: raw
+        raw: '{"name":"node-1","status":"online"}'
+    response: []
+  - name: Provision Database
+    request:
+      method: POST
+      url:
+        raw: "{{base_url}}/databases/provision"
+        host: ["{{base_url}}"]
+        path: ["databases", "provision"]
+      header:
+        - key: Content-Type
+          value: application/json
+      body:
+        mode: raw
+        raw: '{"database_id":"mydb","region":"us-east"}'
+    response: []
+  - name: List Databases
+    request:
+      method: GET
+      url:
+        raw: "{{base_url}}/databases/status"
+        host: ["{{base_url}}"]
+        path: ["databases", "status"]
+    response: []
