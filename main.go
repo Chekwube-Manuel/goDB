@@ -23,7 +23,6 @@ func main() {
 	cfg := loadConfig()
 	cfg.Port = port
 
-	// Detect mode from env if not set via flag
 	if mode == "" {
 		if cfg.NodeEndpoint != "" {
 			mode = "cloud"
@@ -47,7 +46,6 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Start the laptop agent if in laptop mode
 	if mode == "laptop" {
 		go startAgent(ctx, svc)
 	}
@@ -70,4 +68,3 @@ func main() {
 	defer shutdownCancel()
 	_ = server.Shutdown(shutdownCtx)
 }
-</content>
