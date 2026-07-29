@@ -1,0 +1,100 @@
+openapi: 3.0.0
+info:
+  title: DB Host API
+  version: 1.0.0
+  description: API for self-hosted database backend
+servers:
+  - url: http://localhost:8080
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: Service healthy
+  /tenants:
+    post:
+      summary: Create tenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                slug:
+                  type: string
+                name:
+                  type: string
+      responses:
+        '201':
+          description: Tenant created
+    get:
+      summary: List tenants
+      responses:
+        '200':
+          description: Tenant list
+  /tenants/{slug}/collections:
+    post:
+      summary: Create collection
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Collection created
+    get:
+      summary: List collections
+      responses:
+        '200':
+          description: Collection list
+  /tenants/{slug}/collections/{collection}/records:
+    post:
+      summary: Store record
+      parameters:
+        - name: slug
+          in: path
+          required: true
+        - name: collection
+          in: path
+          required: true
+      responses:
+        '201':
+          description: Record stored
+    get:
+      summary: List records
+      responses:
+        '200':
+          description: Record list
+  /nodes:
+    post:
+      summary: Register node
+      responses:
+        '201':
+          description: Node registered
+    get:
+      summary: List nodes
+      responses:
+        '200':
+          description: Node list
+  /node/heartbeat:
+    post:
+      summary: Node heartbeat
+      responses:
+        '200':
+          description: Heartbeat received
+  /databases/provision:
+    post:
+      summary: Provision database
+      responses:
+        '202':
+          description: Provisioning accepted
+  /databases/status:
+    get:
+      summary: List provisioned databases
+      responses:
+        '200':
+          description: Database list
