@@ -1,12 +1,9 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
-	"time"
 )
 
 func (s *service) registerNode(w http.ResponseWriter, r *http.Request) {

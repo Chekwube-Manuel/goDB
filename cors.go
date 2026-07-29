@@ -2,7 +2,6 @@ package main
 
 import (
 	"net/http"
-	"strings"
 )
 
 func (s *service) setCORSHeaders(w http.ResponseWriter, r *http.Request) {

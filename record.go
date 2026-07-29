@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"time"
-
-	"github.com/redis/go-redis/v9"
 )
 
 func (s *service) storeRecord(w http.ResponseWriter, r *http.Request, tenantSlug, collectionName string) {
@@ -30,14 +28,14 @@ func (s *service) storeRecord(w http.ResponseWriter, r *http.Request, tenantSlug
 }
 
 func (s *service) listRecords(w http.ResponseWriter, r *http.Request, tenantSlug, collectionName string) {
-	cacheKey := cacheKey(tenantSlug, collectionName)
+	ck := cacheKey(tenantSlug, collectionName)
 	ctx := r.Context()
-	if cached, err := s.rdb.Get(ctx, cacheKey).Result(); err == nil && cached == "dirty" {
-		_ = s.rdb.Del(ctx, cacheKey).Err()
+	if cached, err := s.rdb.Get(ctx, ck).Result(); err == nil && cached == "dirty" {
+		_ = s.rdb.Del(ctx, ck).Err()
 	}
 
 	var records []recordResult
-	if cached, err := s.rdb.Get(ctx, cacheKey).Bytes(); err == nil {
+	if cached, err := s.rdb.Get(ctx, ck).Bytes(); err == nil {
 		if err := json.Unmarshal(cached, &records); err == nil {
 			writeJSON(w, http.StatusOK, map[string]any{"tenant": tenantSlug, "collection": collectionName, "records": records})
 			return
@@ -60,7 +58,7 @@ func (s *service) listRecords(w http.ResponseWriter, r *http.Request, tenantSlug
 		records = append(records, item)
 	}
 	if payload, err := json.Marshal(records); err == nil {
-		_ = s.rdb.Set(ctx, cacheKey, payload, 2*time.Minute).Err()
+		_ = s.rdb.Set(ctx, ck, payload, 2*time.Minute).Err()
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"tenant": tenantSlug, "collection": collectionName, "records": records})
 }
