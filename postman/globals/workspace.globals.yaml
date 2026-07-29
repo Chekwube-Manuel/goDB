@@ -1,2 +1,18 @@
-name: Globals
-values: []
+_workspace:
+  id: dbhost-workspace
+  name: DB Host
+  description: API workspace for self-hosted database backend
+  collections:
+    - dbhost-api
+  environments:
+    - local
+  globals:
+    - base_url
+    - auth_token
+  variables:
+    - key: base_url
+      value: http://localhost:8080
+      type: default
+    - key: auth_token
+      value: ""
+      type: secret
