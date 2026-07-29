@@ -1,0 +1,16 @@
+_environment:
+  id: local-env
+  name: Local Development
+  values:
+    - key: base_url
+      value: http://localhost:8080
+      type: default
+    - key: username
+      value: admin
+      type: default
+    - key: password
+      value: changeme
+      type: secret
+    - key: node_token
+      value: node-secret
+      type: secret
