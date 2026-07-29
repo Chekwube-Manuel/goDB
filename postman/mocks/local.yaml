@@ -1,0 +1,5 @@
+mocks:
+  - name: Local Mock Server
+    url: http://localhost:8080
+    collections:
+      - dbhost-api
