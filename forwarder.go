@@ -8,17 +8,43 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
+
+// nodeHTTPClient is used for all cloud↔laptop traffic so calls cannot hang
+// indefinitely when a node goes offline.
+var nodeHTTPClient = &http.Client{Timeout: 30 * time.Second}
+
+// configuredNodeEndpoint returns the node endpoint to forward to: the explicit
+// NODE_ENDPOINT config wins, otherwise the most recently seen online node from
+// the registry is used (requires a database, i.e. cloud mode).
+func (s *service) configuredNodeEndpoint(ctx context.Context) (string, error) {
+	if s.cfg.NodeEndpoint != "" {
+		return s.cfg.NodeEndpoint, nil
+	}
+	if s.db == nil {
+		return "", fmt.Errorf("node endpoint not configured")
+	}
+	var endpoint string
+	err := s.db.QueryRowContext(ctx,
+		`SELECT endpoint FROM data_nodes WHERE status = 'online' ORDER BY last_seen_at DESC LIMIT 1`,
+	).Scan(&endpoint)
+	if err != nil {
+		return "", fmt.Errorf("no online node registered")
+	}
+	return endpoint, nil
+}
 
 // forwardRequest forwards any HTTP request to the configured node endpoint.
 // It preserves the method, path, headers, and body so the laptop can handle
 // it exactly as if it received the request directly.
 func (s *service) forwardRequest(r *http.Request) (*http.Response, error) {
-	if s.cfg.NodeEndpoint == "" {
-		return nil, fmt.Errorf("node endpoint not configured")
+	endpoint, err := s.configuredNodeEndpoint(r.Context())
+	if err != nil {
+		return nil, err
 	}
 
-	targetURL := strings.TrimRight(s.cfg.NodeEndpoint, "/") + r.URL.Path
+	targetURL := strings.TrimRight(endpoint, "/") + r.URL.Path
 	if r.URL.RawQuery != "" {
 		targetURL += "?" + r.URL.RawQuery
 	}
@@ -49,7 +75,7 @@ func (s *service) forwardRequest(r *http.Request) (*http.Response, error) {
 	req.Header.Set("X-Forwarded-For", r.RemoteAddr)
 	req.Header.Set("X-Forwarded-Host", r.Host)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := nodeHTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("forward request failed: %w", err)
 	}
@@ -101,7 +127,7 @@ func (s *service) forwardPayloadRequest(ctx context.Context, method, path string
 		req.Header.Set("Authorization", "Bearer "+s.cfg.NodeToken)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := nodeHTTPClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("forward request failed: %w", err)
 	}

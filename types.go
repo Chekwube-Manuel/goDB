@@ -18,6 +18,7 @@ type config struct {
 	NodeEndpoint    string
 	NodeToken       string
 	NodeAuthToken   string
+	NodeName        string
 	RateLimitBurst  int
 	RateLimitWindow int
 	ProxyMode       bool

@@ -134,8 +134,8 @@ curl -u admin:changeme http://localhost:8080/tenants/myapp/collections/users/rec
 | `AUTH_PASSWORD` | `changeme` | Basic auth password |
 | `ALLOWED_ORIGIN` | `*` | CORS origin |
 | `NODE_ENDPOINT` | `` | **Cloud mode**: set to laptop's public URL. Empty = laptop/standalone mode |
-| `NODE_TOKEN` | `` | Token to authenticate with the laptop node |
-| `NODE_AUTH_TOKEN` | `node-secret` | Token the laptop accepts from cloud |
+| `NODE_TOKEN` | mirrors `NODE_AUTH_TOKEN` | Shared secret this process **sends** to its peer (cloud → laptop). Setting just this also sets `NODE_AUTH_TOKEN` |
+| `NODE_AUTH_TOKEN` | `node-secret` | Shared secret this process **accepts** from its peer (laptop ← cloud). Setting just this also sets `NODE_TOKEN` |
 | `CLOUD_ENDPOINT` | `` | **Laptop mode**: the cloud server URL (for agent registration) |
 | `NODE_NAME` | `laptop-1` | Name to register with the cloud |
 | `HEARTBEAT_SEC` | `30` | Heartbeat interval in seconds |

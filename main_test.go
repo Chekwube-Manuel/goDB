@@ -1,6 +1,8 @@
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 )
@@ -65,5 +67,98 @@ func TestRateLimiterBlocksBurstTraffic(t *testing.T) {
 	}
 	if limiter.allow("user-1") {
 		t.Fatal("third request should be blocked")
+	}
+}
+
+func TestConfigMirrorsNodeTokens(t *testing.T) {
+	// Setting only NODE_TOKEN should make both directions use that secret.
+	t.Setenv("NODE_TOKEN", "shared-secret")
+	t.Setenv("NODE_AUTH_TOKEN", "")
+	cfg := loadConfig()
+	if cfg.NodeToken != "shared-secret" {
+		t.Fatalf("expected NodeToken to be set, got %q", cfg.NodeToken)
+	}
+	if cfg.NodeAuthToken != "shared-secret" {
+		t.Fatalf("expected NodeAuthToken to mirror NodeToken, got %q", cfg.NodeAuthToken)
+	}
+
+	// Setting only NODE_AUTH_TOKEN should make both directions use that secret.
+	t.Setenv("NODE_TOKEN", "")
+	t.Setenv("NODE_AUTH_TOKEN", "laptop-secret")
+	cfg = loadConfig()
+	if cfg.NodeAuthToken != "laptop-secret" {
+		t.Fatalf("expected NodeAuthToken to be set, got %q", cfg.NodeAuthToken)
+	}
+	if cfg.NodeToken != "laptop-secret" {
+		t.Fatalf("expected NodeToken to mirror NodeAuthToken, got %q", cfg.NodeToken)
+	}
+
+	// Neither set: fall back to the default secret in both directions.
+	t.Setenv("NODE_TOKEN", "")
+	t.Setenv("NODE_AUTH_TOKEN", "")
+	cfg = loadConfig()
+	if cfg.NodeToken != "node-secret" || cfg.NodeAuthToken != "node-secret" {
+		t.Fatalf("expected default node-secret for both, got token=%q auth=%q", cfg.NodeToken, cfg.NodeAuthToken)
+	}
+}
+
+func TestAuthAcceptsBasicAndNodeToken(t *testing.T) {
+	svc := &service{cfg: config{AuthUsername: "admin", AuthPassword: "pass", NodeAuthToken: "node-secret"}}
+
+	// Admin basic auth is accepted.
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.SetBasicAuth("admin", "pass")
+	if !svc.isAuthenticated(req) {
+		t.Fatal("valid basic auth should authenticate")
+	}
+	if !svc.isRequestAuthorized(req) {
+		t.Fatal("valid basic auth should be request-authorized")
+	}
+
+	// Wrong password is rejected.
+	reqBad := httptest.NewRequest(http.MethodGet, "/", nil)
+	reqBad.SetBasicAuth("admin", "wrong")
+	if svc.isAuthenticated(reqBad) {
+		t.Fatal("wrong password should not authenticate")
+	}
+	if svc.isRequestAuthorized(reqBad) {
+		t.Fatal("wrong password should not be request-authorized")
+	}
+
+	// A trusted node's bearer token is not basic auth, but must be
+	// request-authorized — that is how cloud-forwarded requests reach the laptop.
+	reqBearer := httptest.NewRequest(http.MethodGet, "/", nil)
+	reqBearer.Header.Set("Authorization", "Bearer node-secret")
+	if svc.isAuthenticated(reqBearer) {
+		t.Fatal("bearer token should not pass basic auth")
+	}
+	if !svc.isNodeAuthenticated(reqBearer) {
+		t.Fatal("valid node token should authenticate as a node")
+	}
+	if !svc.isRequestAuthorized(reqBearer) {
+		t.Fatal("valid node token should be request-authorized (cloud forwarding)")
+	}
+
+	// Wrong node token is rejected everywhere.
+	reqBadBearer := httptest.NewRequest(http.MethodGet, "/", nil)
+	reqBadBearer.Header.Set("Authorization", "Bearer wrong")
+	if svc.isNodeAuthenticated(reqBadBearer) {
+		t.Fatal("wrong node token should not authenticate as a node")
+	}
+	if svc.isRequestAuthorized(reqBadBearer) {
+		t.Fatal("wrong node token should not be request-authorized")
+	}
+}
+
+func TestLaptopModeRejectsAnonymousRequest(t *testing.T) {
+	svc := &service{
+		cfg:     config{AuthUsername: "admin", AuthPassword: "pass", NodeAuthToken: "node-secret"},
+		limiter: newRateLimiter(30, 60_000),
+	}
+	req := httptest.NewRequest(http.MethodGet, "/tenants", nil)
+	rr := httptest.NewRecorder()
+	svc.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("anonymous request to laptop should be 401, got %d", rr.Code)
 	}
 }

@@ -46,3 +46,11 @@ func (s *service) isNodeAuthenticated(r *http.Request) bool {
 	}
 	return strings.TrimPrefix(authorization, "Bearer ") != authorization && strings.TrimSpace(strings.TrimPrefix(authorization, "Bearer ")) == s.cfg.NodeAuthToken
 }
+
+// isRequestAuthorized accepts either admin basic auth or a trusted node's
+// bearer token. The laptop (data plane) needs this so requests forwarded by
+// the cloud (which arrive with `Authorization: Bearer <node-token>`) pass,
+// while direct admin access with basic auth still works.
+func (s *service) isRequestAuthorized(r *http.Request) bool {
+	return s.isAuthenticated(r) || s.isNodeAuthenticated(r)
+}

@@ -19,6 +19,22 @@ func (s *service) storeRecord(w http.ResponseWriter, r *http.Request, tenantSlug
 		return
 	}
 	ctx := r.Context()
+
+	// Records are only valid inside an existing tenant + collection.
+	var exists bool
+	if err := s.db.QueryRowContext(ctx, `SELECT EXISTS(
+		SELECT 1 FROM tenants WHERE slug = $1
+	) AND EXISTS(
+		SELECT 1 FROM collections WHERE tenant_slug = $1 AND name = $2
+	)`, tenantSlug, collectionName).Scan(&exists); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	if !exists {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "tenant or collection not found"})
+		return
+	}
+
 	if _, err := s.db.ExecContext(ctx, `INSERT INTO records (tenant_slug, collection_name, payload) VALUES ($1, $2, $3)`, tenantSlug, collectionName, data); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return

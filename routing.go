@@ -16,6 +16,10 @@ func (s *service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(r.URL.Path, "/node") {
 		if s.isNodeAuthenticated(r) {
 			if r.Method == http.MethodPost {
+				if r.URL.Path == "/node/heartbeat" {
+					s.handleNodeHeartbeat(w, r)
+					return
+				}
 				s.handleNodeProvision(w, r)
 				return
 			}
@@ -38,6 +42,11 @@ func (s *service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		if !s.isAuthenticated(r) {
+			w.Header().Set("WWW-Authenticate", `Basic realm="dbhost"`)
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "authentication required"})
+			return
+		}
 		s.forwardRequestAndReply(w, r)
 		return
 	}
@@ -51,6 +60,8 @@ func (s *service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		isCloudOp := false
 		switch {
+		case r.URL.Path == "/" || r.URL.Path == "/dashboard":
+			isCloudOp = true
 		case r.URL.Path == "/tenants" && r.Method == http.MethodPost:
 			isCloudOp = true
 		case r.URL.Path == "/tenants" && r.Method == http.MethodGet:
@@ -68,6 +79,13 @@ func (s *service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// User data paths are forwarded to the laptop, but the cloud still
+		// authenticates the caller first.
+		if !s.isAuthenticated(r) {
+			w.Header().Set("WWW-Authenticate", `Basic realm="dbhost"`)
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "authentication required"})
+			return
+		}
 		s.forwardRequestAndReply(w, r)
 		return
 	}
@@ -82,21 +100,30 @@ func (s *service) routeCloudRequest(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded"})
 		return
 	}
-	if !s.isAuthenticated(r) {
+
+	path := strings.Trim(r.URL.Path, "/")
+	parts := strings.Split(path, "/")
+	if len(parts) == 0 || parts[0] == "" {
+		parts = []string{"dashboard"}
+	}
+
+	// Node management routes (registration, list) can be called by the laptop
+	// agent with its bearer token; everything else requires admin basic auth.
+	authorized := s.isAuthenticated(r)
+	if !authorized && parts[0] == "nodes" {
+		authorized = s.isNodeAuthenticated(r)
+	}
+	if !authorized {
 		w.Header().Set("WWW-Authenticate", `Basic realm="dbhost"`)
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "authentication required"})
 		return
 	}
 
-	path := strings.Trim(r.URL.Path, "/")
-	parts := strings.Split(path, "/")
-	if len(parts) == 0 || parts[0] == "" {
-		parts = []string{"health"}
-	}
-
 	switch {
 	case parts[0] == "health":
 		s.handleHealth(w, r)
+	case parts[0] == "dashboard":
+		s.handleDashboard(w, r)
 	case parts[0] == "tenants" && r.Method == http.MethodPost:
 		s.createTenant(w, r)
 	case parts[0] == "tenants" && r.Method == http.MethodGet:
@@ -122,7 +149,9 @@ func (s *service) handleLocalRequest(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "rate limit exceeded"})
 		return
 	}
-	if !s.isAuthenticated(r) {
+	// Accept admin basic auth (direct access) or a trusted node's bearer
+	// token (requests forwarded from the cloud).
+	if !s.isRequestAuthorized(r) {
 		w.Header().Set("WWW-Authenticate", `Basic realm="dbhost"`)
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "authentication required"})
 		return
@@ -131,12 +160,14 @@ func (s *service) handleLocalRequest(w http.ResponseWriter, r *http.Request) {
 	path := strings.Trim(r.URL.Path, "/")
 	parts := strings.Split(path, "/")
 	if len(parts) == 0 || parts[0] == "" {
-		parts = []string{"health"}
+		parts = []string{"dashboard"}
 	}
 
 	switch {
 	case len(parts) == 1 && parts[0] == "health":
 		s.handleHealth(w, r)
+	case len(parts) == 1 && parts[0] == "dashboard":
+		s.handleDashboard(w, r)
 	case len(parts) == 1 && parts[0] == "nodes" && r.Method == http.MethodPost:
 		s.registerNode(w, r)
 	case len(parts) == 1 && parts[0] == "nodes" && r.Method == http.MethodGet:
@@ -149,8 +180,6 @@ func (s *service) handleLocalRequest(w http.ResponseWriter, r *http.Request) {
 		s.listProvisionedDatabases(w, r)
 	case len(parts) == 1 && parts[0] == "node" && r.Method == http.MethodPost:
 		s.handleNodeProvision(w, r)
-	case len(parts) == 2 && parts[0] == "node" && parts[1] == "heartbeat" && r.Method == http.MethodPost:
-		s.handleNodeHeartbeat(w, r)
 	case len(parts) == 1 && parts[0] == "tenants" && r.Method == http.MethodPost:
 		s.createTenant(w, r)
 	case len(parts) == 1 && parts[0] == "tenants" && r.Method == http.MethodGet:

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>goDB Dashboard</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; }
+  header { padding: 18px 24px; background: #1e293b; border-bottom: 1px solid #334155; display: flex; align-items: center; gap: 14px; }
+  header h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: 0.5px; }
+  header h1 span { color: #38bdf8; }
+  header .meta { margin-left: auto; color: #94a3b8; font-size: 13px; }
+  main { padding: 24px; max-width: 1080px; margin: 0 auto; }
+  .status-row { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+  .pill { padding: 8px 14px; border-radius: 999px; font-size: 13px; background: #1e293b; border: 1px solid #334155; }
+  .pill .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
+  .dot.ok { background: #4ade80; } .dot.down { background: #f87171; } .dot.off { background: #94a3b8; }
+  section { margin-bottom: 28px; }
+  h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin: 0 0 12px; }
+  table { width: 100%; border-collapse: collapse; background: #1e293b; border: 1px solid #334155; border-radius: 8px; overflow: hidden; }
+  th, td { text-align: left; padding: 10px 14px; font-size: 13px; border-bottom: 1px solid #2a3a50; }
+  th { background: #24344c; color: #cbd5e1; font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+  td.mono { font-family: ui-monospace, monospace; font-size: 12px; }
+  .empty { color: #64748b; font-style: italic; padding: 14px; font-size: 13px; }
+  .badge { padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+  .badge.online, .badge.provisioned { background: #064e3b; color: #6ee7b7; }
+  .badge.offline, .badge.failed { background: #7f1d1d; color: #fca5a5; }
+  .badge.provisioning { background: #78350f; color: #fcd34d; }
+  #err { display: none; background: #7f1d1d; color: #fecaca; padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; font-size: 13px; }
+  button { background: #0284c7; color: white; border: none; border-radius: 6px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
+  button:hover { background: #0369a1; }
+  .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+  input { background: #0f172a; border: 1px solid #334155; color: #e2e8f0; border-radius: 6px; padding: 6px 10px; font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>go<span>DB</span></h1>
+  <span class="meta" id="meta">loading…</span>
+</header>
+<main>
+  <div id="err"></div>
+
+  <div class="status-row" id="health"></div>
+
+  <section>
+    <h2>Nodes</h2>
+    <table>
+      <thead><tr><th>Name</th><th>Endpoint</th><th>Status</th><th>Last seen</th></tr></thead>
+      <tbody id="nodes"><tr><td colspan="4" class="empty">loading…</td></tr></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Databases</h2>
+    <div class="toolbar">
+      <input id="dbName" placeholder="database_id (e.g. myapp-prod)" size="24">
+      <button id="provisionBtn">Provision on laptop</button>
+    </div>
+    <table>
+      <thead><tr><th>Database</th><th>Region</th><th>Status</th><th>Node</th><th>Created</th></tr></thead>
+      <tbody id="databases"><tr><td colspan="5" class="empty">loading…</td></tr></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Tenants</h2>
+    <table>
+      <thead><tr><th>Slug</th><th>Name</th><th>Created</th></tr></thead>
+      <tbody id="tenants"><tr><td colspan="3" class="empty">loading…</td></tr></tbody>
+    </table>
+  </section>
+</main>
+
+<script>
+async function j(url, opts) {
+  const res = await fetch(url, opts);
+  if (!res.ok) throw new Error(url + " → " + res.status);
+  return res.json();
+}
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+function badge(status) {
+  const s = String(status).toLowerCase();
+  const cls = (s === "online" || s === "provisioned") ? "online" : (s === "provisioning" ? "provisioning" : "offline");
+  return `<span class="badge ${cls}">${esc(status)}</span>`;
+}
+
+function fmt(t) {
+  if (!t) return "—";
+  const d = new Date(t);
+  return isNaN(d) ? esc(t) : d.toLocaleString();
+}
+
+async function refresh() {
+  try {
+    const h = await j("health");
+    document.getElementById("meta").textContent = h.service + " · mode " + (h.mode || (h.database ? "full" : "unknown"));
+    const pills = [
+      { k: "service", v: h.status },
+      { k: "database", v: h.database || "n/a" },
+      { k: "redis", v: h.redis || "n/a" }
+    ];
+    document.getElementById("health").innerHTML = pills.map(p =>
+      `<span class="pill"><span class="dot ${p.v === "up" || p.v === "ok" ? "ok" : (p.v === "n/a" ? "off" : "down")}"></span>${p.k}: ${esc(p.v)}</span>`
+    ).join("");
+  } catch (e) { document.getElementById("health").innerHTML = ""; }
+
+  try {
+    const n = await j("nodes");
+    const tbody = document.getElementById("nodes");
+    tbody.innerHTML = (n.nodes || []).map(x =>
+      `<tr><td class="mono">${esc(x.name)}</td><td class="mono">${esc(x.endpoint)}</td><td>${badge(x.status)}</td><td>${fmt(x.last_seen_at)}</td></tr>`
+    ).join("") || `<tr><td colspan="4" class="empty">no nodes registered</td></tr>`;
+  } catch (e) { document.getElementById("nodes").innerHTML = `<tr><td colspan="4" class="empty">error: ${esc(e.message)}</td></tr>`; }
+
+  try {
+    const d = await j("databases/status");
+    const tbody = document.getElementById("databases");
+    tbody.innerHTML = (d.databases || []).map(x =>
+      `<tr><td class="mono">${esc(x.database_id)}</td><td>${esc(x.region || "—")}</td><td>${badge(x.status)}</td><td class="mono">${esc(x.node)}</td><td>${fmt(x.created_at)}</td></tr>`
+    ).join("") || `<tr><td colspan="5" class="empty">no databases provisioned</td></tr>`;
+  } catch (e) { document.getElementById("databases").innerHTML = `<tr><td colspan="5" class="empty">error: ${esc(e.message)}</td></tr>`; }
+
+  try {
+    const t = await j("tenants");
+    const tbody = document.getElementById("tenants");
+    tbody.innerHTML = (t.tenants || []).map(x =>
+      `<tr><td class="mono">${esc(x.slug)}</td><td>${esc(x.name)}</td><td>${fmt(x.created_at)}</td></tr>`
+    ).join("") || `<tr><td colspan="3" class="empty">no tenants</td></tr>`;
+  } catch (e) { document.getElementById("tenants").innerHTML = `<tr><td colspan="3" class="empty">error: ${esc(e.message)}</td></tr>`; }
+}
+
+document.getElementById("provisionBtn").addEventListener("click", async () => {
+  const name = document.getElementById("dbName").value.trim();
+  const err = document.getElementById("err");
+  if (!name) { err.style.display = "block"; err.textContent = "enter a database_id first"; return; }
+  try {
+    await j("databases/provision", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ database_id: name, region: "laptop" })
+    });
+    err.style.display = "none";
+    document.getElementById("dbName").value = "";
+    refresh();
+  } catch (e) {
+    err.style.display = "block";
+    err.textContent = "provision failed: " + e.message;
+  }
+});
+
+refresh();
+setInterval(refresh, 10000);
+</script>
+</body>
+</html>

@@ -68,20 +68,20 @@ Write-Host ""
 $env:CLOUD_ENDPOINT = $CloudEndpoint
 $env:NODE_NAME = $env:COMPUTERNAME
 $env:NODE_TOKEN = "node-secret-$(Get-Random -Minimum 100000 -Maximum 999999)"
-$env:NODE_ENDPOINT = $apiUrl
+# NOTE: do NOT set NODE_ENDPOINT here — that would switch this process into
+# cloud mode. NODE_ENDPOINT belongs on the cloud server (see step 4).
 
 Write-Host "Starting goDB laptop agent..." -ForegroundColor Yellow
 Write-Host "  NODE_NAME:      $env:NODE_NAME"
-Write-Host "  NODE_ENDPOINT:  $env:NODE_ENDPOINT"
-Write-Host "  CLOUD_ENDPOINT: $env:CLOUD_ENDPOINT"
 Write-Host "  NODE_TOKEN:     $env:NODE_TOKEN (SHARE THIS WITH YOUR CLOUD SERVER)"
+Write-Host "  CLOUD_ENDPOINT: $env:CLOUD_ENDPOINT"
 Write-Host ""
 
 # 4. Display the registration token for the cloud server
 Write-Host "=== IMPORTANT ===" -ForegroundColor Magenta
 Write-Host "On your cloud server, set these environment variables:" -ForegroundColor White
 Write-Host "  NODE_ENDPOINT=$apiUrl"
-Write-Host "  NODE_TOKEN=$env:NODE_TOKEN"
+Write-Host "  NODE_TOKEN=$env:NODE_TOKEN   (NODE_AUTH_TOKEN mirrors this — no need to set it separately)"
 Write-Host ""
 
 # 5. Run the goDB binary

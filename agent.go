@@ -79,6 +79,9 @@ func agentRegister(ctx context.Context, ac AgentConfig) error {
 		return fmt.Errorf("create register request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	// Authenticate with the cloud using the shared node token so registration
+	// works without admin basic-auth credentials on the agent.
+	req.Header.Set("Authorization", "Bearer "+ac.NodeToken)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

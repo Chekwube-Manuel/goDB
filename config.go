@@ -16,6 +16,23 @@ func loadConfig() config {
 		}
 	}
 
+	// One shared secret authenticates node-to-node traffic in both directions:
+	// NODE_TOKEN is what this process sends to its peer, NODE_AUTH_TOKEN is
+	// what it accepts from its peer. Mirroring the two means setting a single
+	// env var on each side is enough.
+	nodeToken := getenv("NODE_TOKEN", "")
+	nodeAuthToken := getenv("NODE_AUTH_TOKEN", "")
+	if nodeToken == "" {
+		nodeToken = nodeAuthToken
+	}
+	if nodeAuthToken == "" {
+		nodeAuthToken = nodeToken
+	}
+	if nodeToken == "" {
+		nodeToken = "node-secret"
+		nodeAuthToken = "node-secret"
+	}
+
 	return config{
 		Port:          getenvInt("PORT", 8080),
 		DatabaseURL:   getenv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/appdb?sslmode=disable"),
@@ -27,8 +44,9 @@ func loadConfig() config {
 		AuthPassword:    getenv("AUTH_PASSWORD", "changeme"),
 		AllowedOrigin:   getenv("ALLOWED_ORIGIN", "*"),
 		NodeEndpoint:    getenv("NODE_ENDPOINT", ""),
-		NodeToken:       getenv("NODE_TOKEN", ""),
-		NodeAuthToken:   getenv("NODE_AUTH_TOKEN", "node-secret"),
+		NodeToken:       nodeToken,
+		NodeAuthToken:   nodeAuthToken,
+		NodeName:        getenv("NODE_NAME", "laptop-1"),
 		RateLimitBurst:  getenvInt("RATE_LIMIT_BURST", 30),
 		RateLimitWindow: getenvInt("RATE_LIMIT_WINDOW_MS", 60_000),
 		ProxyMode:       proxyMode == "true" || proxyMode == "1",
